@@ -101,11 +101,37 @@ def index():
         subject_count = conn.execute("SELECT COUNT(*) FROM subjects").fetchone()[0]
         grade_count = conn.execute("SELECT COUNT(*) FROM grades").fetchone()[0]
         tuition_balance = conn.execute("SELECT COALESCE(SUM(MAX(amount_due-amount_paid,0)),0) FROM tuition").fetchone()[0]
+        tuition_totals = conn.execute(
+            "SELECT COALESCE(SUM(amount_due),0), COALESCE(SUM(amount_paid),0) FROM tuition"
+        ).fetchone()
+        grade_summary = conn.execute("""
+            SELECT CASE
+                WHEN (attendance*0.1 + midterm*0.3 + final*0.6) >= 8 THEN 'Giỏi'
+                WHEN (attendance*0.1 + midterm*0.3 + final*0.6) >= 6.5 THEN 'Khá'
+                WHEN (attendance*0.1 + midterm*0.3 + final*0.6) >= 5 THEN 'Trung bình'
+                ELSE 'Cần cố gắng'
+            END AS label, COUNT(*) AS amount
+            FROM grades GROUP BY label
+        """).fetchall()
+        class_summary = conn.execute("""
+            SELECT class_name AS label, COUNT(*) AS amount
+            FROM students GROUP BY class_name ORDER BY amount DESC, label LIMIT 8
+        """).fetchall()
     finally:
         conn.close()
+    chart_data = {
+        "gradeLabels": [row["label"] for row in grade_summary],
+        "gradeValues": [row["amount"] for row in grade_summary],
+        "classLabels": [row["label"] for row in class_summary],
+        "classValues": [row["amount"] for row in class_summary],
+        "tuitionDue": float(tuition_totals[0] or 0),
+        "tuitionPaid": float(tuition_totals[1] or 0),
+        "tuitionBalance": float(tuition_balance or 0),
+    }
     return render_template("index.html", students=students, editing=editing, keyword=keyword,
         total=total, subjects=subjects, grades=grades, tuition=tuition,
         subject_count=subject_count, grade_count=grade_count, tuition_balance=tuition_balance,
+        chart_data=chart_data,
         message=request.args.get("message", ""), error=request.args.get("error", ""))
 
 @app.post("/save")

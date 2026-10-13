@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    image: qlsv:1.0
+    image: qlsv:1.1
     ports:
       - "127.0.0.1:5000:5000"
     environment:
